@@ -106,7 +106,7 @@ def getLimits(analysis,mode,mass,outDir,prod='',doImpacts=False,retrieve=False,s
         rmin = 0.8*min(quartiles)
         rmax = 1.2*max(quartiles)
         num_points = 100
-        points_per_job = 10
+        points_per_job = 5
         toys = 10000
 
         # create dag dir
