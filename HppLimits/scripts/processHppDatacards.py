@@ -105,7 +105,7 @@ def getLimits(analysis,mode,mass,outDir,prod='',doImpacts=False,retrieve=False,s
             logging.info('{0}:{1}:{2}: Limits: {3}'.format(analysis,mode,mass,outline))
 
         with open(fileName,'w') as f:
-            outline = ' '.join([str(x) for x in quartileMap[name]])
+            outline = ' '.join([str(x) for x in quartiles])
             f.write(outline)
 
     if submit:
@@ -223,20 +223,6 @@ def getLimits(analysis,mode,mass,outDir,prod='',doImpacts=False,retrieve=False,s
     #        for i, row in enumerate(tree):
     #            val = row.limit
     #    fullQuartiles += [val]
-
-    # save the values
-    quartileMap = {
-        'asymptotic' : quartiles,
-        #'fullCLs' : fullQuartiles,
-    }
-    for name in ['asymptotic']:
-        fileDir = '{4}/{0}/{1}/{2}/{3}'.format(name,analysis,mode,mass,srcdir)
-        python_mkdir(fileDir)
-        fileName = '{0}/limits{1}.txt'.format(fileDir,prod)
-        with open(fileName,'w') as f:
-            outline = ' '.join([str(x) for x in quartileMap[name]])
-            logging.info('{0}:{1}:{2}: Limits: {3} - {4}'.format(analysis,mode,mass,name, outline))
-            f.write(outline)
 
 
 
