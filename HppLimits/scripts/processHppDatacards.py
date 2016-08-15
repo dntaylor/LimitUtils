@@ -36,7 +36,7 @@ def limitsWrapper(args):
 def runCommand(command):
     return subprocess.Popen(command,shell=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT).communicate()[0]
 
-def getLimits(analysis,mode,mass,outDir,prod='',doImpacts=False,retrieve=False,submit=False,dryrun=False,jobName=''):
+def getLimits(analysis,mode,mass,outDir,prod='',doImpacts=False,retrieve=False,submit=False,dryrun=False,jobName='',skipAsymptotic=False):
     '''
     Submit a job using farmoutAnalysisJobs --fwklite
     '''
@@ -79,20 +79,34 @@ def getLimits(analysis,mode,mass,outDir,prod='',doImpacts=False,retrieve=False,s
     command = 'pushd {0}; nice {1};'.format(workfull,combineCommand) 
     logging.info('{0}:{1}:{2}: Finding Asymptotic limit: {3}'.format(analysis,mode,mass,datacard))
     logging.debug('{0}:{1}:{2}: {3}'.format(analysis,mode,mass,combineCommand))
-    out = runCommand(command)
 
-    fname = os.path.join(workfull, "higgsCombineTest.Asymptotic.mH{0}.root".format(mass))
-    file = ROOT.TFile(fname,"READ")
-    tree = file.Get("limit")
-    if not tree: 
-        logging.warning('{0}:{1}:{2}: Asymptotic presearch failed'.format(analysis,mode,mass))
-        quartiles = [0., 0., 0., 0., 0., 0.]
+
+    name = 'asymptotic'
+    fileDir = '{4}/{0}/{1}/{2}/{3}'.format(name,analysis,mode,mass,srcdir)
+    python_mkdir(fileDir)
+    fileName = '{0}/limits{1}.txt'.format(fileDir,prod)
+    if skipAsymptotic and os.path.isfile(fileName):
+        with open(fileName,'r') as f:
+            quartiles = [float(x) for x in f.readlines()[0].split()]
     else:
-        quartiles = []
-        for i, row in enumerate(tree):
-            quartiles += [row.limit]
-        outline = ' '.join([str(x) for x in quartiles])
-        logging.info('{0}:{1}:{2}: Limits: {3}'.format(analysis,mode,mass,outline))
+        out = runCommand(command)
+
+        fname = os.path.join(workfull, "higgsCombineTest.Asymptotic.mH{0}.root".format(mass))
+        file = ROOT.TFile(fname,"READ")
+        tree = file.Get("limit")
+        if not tree: 
+            logging.warning('{0}:{1}:{2}: Asymptotic presearch failed'.format(analysis,mode,mass))
+            quartiles = [0., 0., 0., 0., 0., 0.]
+        else:
+            quartiles = []
+            for i, row in enumerate(tree):
+                quartiles += [row.limit]
+            outline = ' '.join([str(x) for x in quartiles])
+            logging.info('{0}:{1}:{2}: Limits: {3}'.format(analysis,mode,mass,outline))
+
+        with open(fileName,'w') as f:
+            outline = ' '.join([str(x) for x in quartileMap[name]])
+            f.write(outline)
 
     if submit:
         sample_dir = '/nfs_scratch/{0}/{1}/{2}/{3}/{4}{5}'.format(pwd.getpwuid(os.getuid())[0], jobName, analysis, mode, mass, prod)
@@ -103,8 +117,8 @@ def getLimits(analysis,mode,mass,outDir,prod='',doImpacts=False,retrieve=False,s
             logging.warning('Submission directory exists for {0}.'.format(jobName))
             return
         # setup the job parameters
-        rmin = 0.8*min(quartiles)
-        rmax = 1.2*max(quartiles)
+        rmin = 0.8*min(quartiles[:5])
+        rmax = 1.2*max(quartiles[:5])
         num_points = 100
         points_per_job = 5
         toys = 10000
@@ -239,6 +253,7 @@ def parse_command_line(argv):
     parser.add_argument('-i','--impacts',action='store_true',help='Do impacts (slower)')
     parser.add_argument('-j','--jobName', nargs='?',type=str,default='',help='Jobname for submission')
     parser.add_argument('-s','--submit',action='store_true',help='Submit Full CLs')
+    parser.add_argument('-sa','--skipAsymptotic',action='store_true',help='Skip calculating asymptotic (read from file)')
     parser.add_argument('-r','--retrieve',action='store_true',help='Retrieve Full CLs')
     parser.add_argument('-dr','--dryrun',action='store_true',help='Dryrun for submission')
     parser.add_argument('-l','--log',nargs='?',type=str,const='INFO',default='INFO',choices=['INFO','DEBUG','WARNING','ERROR','CRITICAL'],help='Log level for logger')
@@ -265,20 +280,20 @@ def main(argv=None):
             if len(allowedMasses)==1 or args.submit:
                 for m in allowedMasses:
                     if an=='Hpp3l':
-                        getLimits(an,bp,m,args.directory,'AP',args.impacts,args.retrieve,args.submit,args.dryrun,args.jobName)
-                        getLimits(an,bp,m,args.directory,'PP',args.impacts,args.retrieve,args.submit,args.dryrun,args.jobName)
+                        getLimits(an,bp,m,args.directory,'AP',args.impacts,args.retrieve,args.submit,args.dryrun,args.jobName,args.skipAsymptotic)
+                        getLimits(an,bp,m,args.directory,'PP',args.impacts,args.retrieve,args.submit,args.dryrun,args.jobName,args.skipAsymptotic)
                     else:
-                        getLimits(an,bp,m,args.directory,'',args.impacts,args.retrieve,args.submit,args.dryrun,args.jobName)
+                        getLimits(an,bp,m,args.directory,'',args.impacts,args.retrieve,args.submit,args.dryrun,args.jobName,args.skipAsymptotic)
             else:
                 allArgs = []
                 for m in allowedMasses:
                     if an=='Hpp3l':
-                        newArgs = [an,bp,m,args.directory,'AP',args.impacts,args.retrieve,args.submit,args.dryrun,args.jobName]
+                        newArgs = [an,bp,m,args.directory,'AP',args.impacts,args.retrieve,args.submit,args.dryrun,args.jobName,args.skipAsymptotic]
                         allArgs += [newArgs]
-                        newArgs = [an,bp,m,args.directory,'PP',args.impacts,args.retrieve,args.submit,args.dryrun,args.jobName]
+                        newArgs = [an,bp,m,args.directory,'PP',args.impacts,args.retrieve,args.submit,args.dryrun,args.jobName,args.skipAsymptotic]
                         allArgs += [newArgs]
                     else:
-                        newArgs = [an,bp,m,args.directory,'',args.impacts,args.retrieve,args.submit,args.dryrun,args.jobName]
+                        newArgs = [an,bp,m,args.directory,'',args.impacts,args.retrieve,args.submit,args.dryrun,args.jobName,args.skipAsymptotic]
                         allArgs += [newArgs]
                 p = Pool(14)
                 try:
