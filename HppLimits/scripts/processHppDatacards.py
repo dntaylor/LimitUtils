@@ -18,8 +18,11 @@ import math
 import ROOT
 import subprocess
 from multiprocessing import Pool
+from socket import gethostname
 
 masses = [200, 300, 400, 500, 600, 700, 800, 900, 1000, 1100, 1200, 1300, 1400, 1500]
+
+scratchDir = 'data' if 'uwlogin' in gethostname() else 'nfs_scratch'
 
 def python_mkdir(dir):
     '''A function to make a unix directory as well as subdirectories'''
@@ -36,7 +39,7 @@ def limitsWrapper(args):
 def runCommand(command):
     return subprocess.Popen(command,shell=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT).communicate()[0]
 
-def getLimits(analysis,mode,mass,outDir,prod='',doImpacts=False,retrieve=False,submit=False,dryrun=False,jobName='',skipAsymptotic=False):
+def getLimits(analysis,mode,mass,outDir,prod='',doImpacts=False,retrieve=False,submit=False,dryrun=False,jobName='',skipAsymptotic=False,toys=10000,iterations=2):
     '''
     Submit a job using farmoutAnalysisJobs --fwklite
     '''
@@ -76,7 +79,8 @@ def getLimits(analysis,mode,mass,outDir,prod='',doImpacts=False,retrieve=False,s
     workfull = os.path.join(srcdir,work)
     python_mkdir(workfull)
     combineCommand = 'combine -M Asymptotic {0} -m {1} --saveWorkspace'.format(dfull,mass)
-    command = 'pushd {0}; nice {1};'.format(workfull,combineCommand) 
+    #command = 'pushd {0}; nice {1};'.format(workfull,combineCommand) 
+    command = 'pushd {0}; {1};'.format(workfull,combineCommand) 
     logging.info('{0}:{1}:{2}: Finding Asymptotic limit: {3}'.format(analysis,mode,mass,datacard))
     logging.debug('{0}:{1}:{2}: {3}'.format(analysis,mode,mass,combineCommand))
 
@@ -109,7 +113,7 @@ def getLimits(analysis,mode,mass,outDir,prod='',doImpacts=False,retrieve=False,s
             f.write(outline)
 
     if submit:
-        sample_dir = '/nfs_scratch/{0}/{1}/{2}/{3}/{4}{5}'.format(pwd.getpwuid(os.getuid())[0], jobName, analysis, mode, mass, prod)
+        sample_dir = '/{0}/{1}/{2}/{3}/{4}/{5}{6}'.format(scratchDir,pwd.getpwuid(os.getuid())[0], jobName, analysis, mode, mass, prod)
 
         # create submit dir
         submit_dir = '{0}/submit'.format(sample_dir)
@@ -120,8 +124,7 @@ def getLimits(analysis,mode,mass,outDir,prod='',doImpacts=False,retrieve=False,s
         rmin = 0.8*min(quartiles[:5])
         rmax = 1.2*max(quartiles[:5])
         num_points = 100
-        points_per_job = 5
-        toys = 10000
+        points_per_job = 2
 
         # create dag dir
         dag_dir = '{0}/dags/dag'.format(sample_dir)
@@ -145,7 +148,7 @@ def getLimits(analysis,mode,mass,outDir,prod='',doImpacts=False,retrieve=False,s
         bashScript += 'read -r RVAL < $INPUT\n'
         for i in range(points_per_job):
             dr = i*(rmax-rmin)/points_per_job
-            bashScript += 'combine $CMSSW_BASE/{0} -M HybridNew --freq -s -1 --singlePoint $(bc -l <<< "$RVAL+{1}") --saveToys --fullBToys --clsAcc 0 --saveHybridResult -m {2} -n Tag -T {3} -i 2\n'.format(drel,dr,mass,toys)
+            bashScript += 'combine $CMSSW_BASE/{0} -M HybridNew --freq -s -1 --singlePoint $(bc -l <<< "$RVAL+{1}") --saveToys --fullBToys --clsAcc 0 --saveHybridResult -m {2} -n Tag -T {3} -i {4}\n'.format(drel,dr,mass,toys,iterations)
         bashScript += 'hadd $OUTPUT higgsCombineTag.HybridNew.mH{0}.*.root\n'.format(mass)
         bashScript += 'rm higgsCombineTag.HybridNew.mH{0}.*.root\n'.format(mass)
         with open(bash_name,'w') as file:
@@ -172,10 +175,12 @@ def getLimits(analysis,mode,mass,outDir,prod='',doImpacts=False,retrieve=False,s
         command = 'text2workspace.py {0} -m {1}'.format(dfull,mass)
         runCommand(command)
         logging.info('{0}:{1}:{2}: Impacts: initial fit'.format(analysis,mode,mass))
-        command = 'pushd {0}; nice combineTool.py -M Impacts -d {1} -m {2} --doInitialFit --robustFit 1'.format(workfull,wfull,mass)
+        #command = 'pushd {0}; nice combineTool.py -M Impacts -d {1} -m {2} --doInitialFit --robustFit 1'.format(workfull,wfull,mass)
+        command = 'pushd {0}; combineTool.py -M Impacts -d {1} -m {2} --doInitialFit --robustFit 1'.format(workfull,wfull,mass)
         runCommand(command)
         logging.info('{0}:{1}:{2}: Impacts: nuissance fits'.format(analysis,mode,mass))
-        command = 'pushd {0}; nice combineTool.py -M Impacts -d {1} -m {2} --robustFit 1 --doFits'.format(workfull,wfull,mass)
+        #command = 'pushd {0}; nice combineTool.py -M Impacts -d {1} -m {2} --robustFit 1 --doFits'.format(workfull,wfull,mass)
+        command = 'pushd {0}; combineTool.py -M Impacts -d {1} -m {2} --robustFit 1 --doFits'.format(workfull,wfull,mass)
         runCommand(command)
         logging.info('{0}:{1}:{2}: Impacts: saving/plotting'.format(analysis,mode,mass))
         command = 'pushd {0}; combineTool.py -M Impacts -d {1} -m {2} -o {3}'.format(workfull,wfull,mass,ifull)
@@ -236,12 +241,16 @@ def parse_command_line(argv):
     parser.add_argument('-ab','--allBranchingPoints',action='store_true',help='Run over all branching points')
     parser.add_argument('-am','--allMasses',action='store_true',help='Run over all masses')
     parser.add_argument('-aa','--allAnalyses',action='store_true',help='Run over all anlayses')
-    parser.add_argument('-i','--impacts',action='store_true',help='Do impacts (slower)')
+    parser.add_argument('--impacts',action='store_true',help='Do impacts (slower)')
+    # job submission
     parser.add_argument('-j','--jobName', nargs='?',type=str,default='',help='Jobname for submission')
     parser.add_argument('-s','--submit',action='store_true',help='Submit Full CLs')
     parser.add_argument('-sa','--skipAsymptotic',action='store_true',help='Skip calculating asymptotic (read from file)')
     parser.add_argument('-r','--retrieve',action='store_true',help='Retrieve Full CLs')
     parser.add_argument('-dr','--dryrun',action='store_true',help='Dryrun for submission')
+    parser.add_argument('-T',type=int,default=10000,help='Number of toys')
+    parser.add_argument('-i',type=int,default=2,help='Iterations')
+    # logging
     parser.add_argument('-l','--log',nargs='?',type=str,const='INFO',default='INFO',choices=['INFO','DEBUG','WARNING','ERROR','CRITICAL'],help='Log level for logger')
 
     args = parser.parse_args(argv)
@@ -266,20 +275,20 @@ def main(argv=None):
             if len(allowedMasses)==1 or args.submit:
                 for m in allowedMasses:
                     if an=='Hpp3l':
-                        getLimits(an,bp,m,args.directory,'AP',args.impacts,args.retrieve,args.submit,args.dryrun,args.jobName,args.skipAsymptotic)
-                        getLimits(an,bp,m,args.directory,'PP',args.impacts,args.retrieve,args.submit,args.dryrun,args.jobName,args.skipAsymptotic)
+                        getLimits(an,bp,m,args.directory,'AP',args.impacts,args.retrieve,args.submit,args.dryrun,args.jobName,args.skipAsymptotic,args.T,args.i)
+                        getLimits(an,bp,m,args.directory,'PP',args.impacts,args.retrieve,args.submit,args.dryrun,args.jobName,args.skipAsymptotic,args.T,args.i)
                     else:
-                        getLimits(an,bp,m,args.directory,'',args.impacts,args.retrieve,args.submit,args.dryrun,args.jobName,args.skipAsymptotic)
+                        getLimits(an,bp,m,args.directory,'',args.impacts,args.retrieve,args.submit,args.dryrun,args.jobName,args.skipAsymptotic,args.T,args.i)
             else:
                 allArgs = []
                 for m in allowedMasses:
                     if an=='Hpp3l':
-                        newArgs = [an,bp,m,args.directory,'AP',args.impacts,args.retrieve,args.submit,args.dryrun,args.jobName,args.skipAsymptotic]
+                        newArgs = [an,bp,m,args.directory,'AP',args.impacts,args.retrieve,args.submit,args.dryrun,args.jobName,args.skipAsymptotic,args.T,args.i]
                         allArgs += [newArgs]
-                        newArgs = [an,bp,m,args.directory,'PP',args.impacts,args.retrieve,args.submit,args.dryrun,args.jobName,args.skipAsymptotic]
+                        newArgs = [an,bp,m,args.directory,'PP',args.impacts,args.retrieve,args.submit,args.dryrun,args.jobName,args.skipAsymptotic,args.T,args.i]
                         allArgs += [newArgs]
                     else:
-                        newArgs = [an,bp,m,args.directory,'',args.impacts,args.retrieve,args.submit,args.dryrun,args.jobName,args.skipAsymptotic]
+                        newArgs = [an,bp,m,args.directory,'',args.impacts,args.retrieve,args.submit,args.dryrun,args.jobName,args.skipAsymptotic,args.T,args.i]
                         allArgs += [newArgs]
                 p = Pool(14)
                 try:
