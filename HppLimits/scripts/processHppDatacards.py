@@ -149,7 +149,7 @@ def getLimits(analysis,mode,mass,outDir,prod='',doImpacts=False,retrieve=False,s
         for i in range(points_per_job):
             dr = i*(rmax-rmin)/points_per_job
             bashScript += 'combine $CMSSW_BASE/{0} -M HybridNew --freq -s -1 --singlePoint $(bc -l <<< "$RVAL+{1}") --saveToys --fullBToys --clsAcc 0 --saveHybridResult -m {2} -n Tag -T {3} -i {4} -v -2\n'.format(drel,dr,mass,toys,iterations)
-            bashScript += 'rm -f tmp/rstats*\n' # try cleaning up tmp files to avoid too uch disk space
+            #bashScript += 'rm -f tmp/rstats*\n' # try cleaning up tmp files to avoid too uch disk space
         bashScript += 'hadd $OUTPUT higgsCombineTag.HybridNew.mH{0}.*.root\n'.format(mass)
         bashScript += 'rm higgsCombineTag.HybridNew.mH{0}.*.root\n'.format(mass)
         with open(bash_name,'w') as file:
