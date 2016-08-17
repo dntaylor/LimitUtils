@@ -124,7 +124,7 @@ def getLimits(analysis,mode,mass,outDir,prod='',doImpacts=False,retrieve=False,s
         rmin = 0.8*min(quartiles[:5])
         rmax = 1.2*max(quartiles[:5])
         num_points = 100
-        points_per_job = 2
+        points_per_job = 5
 
         # create dag dir
         dag_dir = '{0}/dags/dag'.format(sample_dir)
@@ -144,11 +144,12 @@ def getLimits(analysis,mode,mass,outDir,prod='',doImpacts=False,retrieve=False,s
         # create bash script
         bash_name = '{0}/{1}.sh'.format(dag_dir+'inputs', jobName)
         bashScript = '#!/bin/bash\n'
-        bashScript += 'printenv\n'
+        #bashScript += 'printenv\n'
         bashScript += 'read -r RVAL < $INPUT\n'
         for i in range(points_per_job):
             dr = i*(rmax-rmin)/points_per_job
-            bashScript += 'combine $CMSSW_BASE/{0} -M HybridNew --freq -s -1 --singlePoint $(bc -l <<< "$RVAL+{1}") --saveToys --fullBToys --clsAcc 0 --saveHybridResult -m {2} -n Tag -T {3} -i {4}\n'.format(drel,dr,mass,toys,iterations)
+            bashScript += 'combine $CMSSW_BASE/{0} -M HybridNew --freq -s -1 --singlePoint $(bc -l <<< "$RVAL+{1}") --saveToys --fullBToys --clsAcc 0 --saveHybridResult -m {2} -n Tag -T {3} -i {4} -v -2\n'.format(drel,dr,mass,toys,iterations)
+            bashScript += 'rm -f tmp/rstats*\n' # try cleaning up tmp files to avoid too uch disk space
         bashScript += 'hadd $OUTPUT higgsCombineTag.HybridNew.mH{0}.*.root\n'.format(mass)
         bashScript += 'rm higgsCombineTag.HybridNew.mH{0}.*.root\n'.format(mass)
         with open(bash_name,'w') as file:
