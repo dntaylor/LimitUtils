@@ -39,7 +39,7 @@ def limitsWrapper(args):
 def runCommand(command):
     return subprocess.Popen(command,shell=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT).communicate()[0]
 
-def getLimits(analysis,mode,mass,outDir,prod='',doImpacts=False,retrieve=False,submit=False,dryrun=False,jobName='',skipAsymptotic=False,toys=10000,iterations=2):
+def getLimits(analysis,mode,mass,outDir,prod='',doImpacts=False,retrieve=False,submit=False,dryrun=False,jobName='',skipAsymptotic=False,toys=1000,iterations=2):
     '''
     Submit a job using farmoutAnalysisJobs --fwklite
     '''
@@ -121,8 +121,8 @@ def getLimits(analysis,mode,mass,outDir,prod='',doImpacts=False,retrieve=False,s
             logging.warning('Submission directory exists for {0}.'.format(jobName))
             return
         # setup the job parameters
-        rmin = 0.8*min(quartiles[:5])
-        rmax = 1.2*max(quartiles[:5])
+        rmin = 0.8*min(quartiles)
+        rmax = 1.2*max(quartiles)
         num_points = 100
         points_per_job = 5
 
@@ -249,7 +249,7 @@ def parse_command_line(argv):
     parser.add_argument('-sa','--skipAsymptotic',action='store_true',help='Skip calculating asymptotic (read from file)')
     parser.add_argument('-r','--retrieve',action='store_true',help='Retrieve Full CLs')
     parser.add_argument('-dr','--dryrun',action='store_true',help='Dryrun for submission')
-    parser.add_argument('-T',type=int,default=10000,help='Number of toys')
+    parser.add_argument('-T',type=int,default=1000,help='Number of toys')
     parser.add_argument('-i',type=int,default=2,help='Iterations')
     # logging
     parser.add_argument('-l','--log',nargs='?',type=str,const='INFO',default='INFO',choices=['INFO','DEBUG','WARNING','ERROR','CRITICAL'],help='Log level for logger')
