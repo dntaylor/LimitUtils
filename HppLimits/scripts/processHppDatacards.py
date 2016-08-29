@@ -39,7 +39,7 @@ def limitsWrapper(args):
 def runCommand(command):
     return subprocess.Popen(command,shell=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT).communicate()[0]
 
-def getLimits(analysis,mode,mass,outDir,prod='',doImpacts=False,retrieve=False,submit=False,dryrun=False,jobName='',skipAsymptotic=False,toys=1000,iterations=2):
+def getLimits(analysis,mode,mass,outDir,prod='',doImpacts=False,retrieve=False,submit=False,dryrun=False,jobName='',skipAsymptotic=False,toys=1000,iterations=2,numPoints=100,pointsPerJob=5,gridTopDir=''):
     '''
     Submit a job using farmoutAnalysisJobs --fwklite
     '''
@@ -81,8 +81,6 @@ def getLimits(analysis,mode,mass,outDir,prod='',doImpacts=False,retrieve=False,s
     combineCommand = 'combine -M Asymptotic {0} -m {1} --saveWorkspace'.format(dfull,mass)
     #command = 'pushd {0}; nice {1};'.format(workfull,combineCommand) 
     command = 'pushd {0}; {1};'.format(workfull,combineCommand) 
-    logging.info('{0}:{1}:{2}: Finding Asymptotic limit: {3}'.format(analysis,mode,mass,datacard))
-    logging.debug('{0}:{1}:{2}: {3}'.format(analysis,mode,mass,combineCommand))
 
 
     name = 'asymptotic'
@@ -93,6 +91,8 @@ def getLimits(analysis,mode,mass,outDir,prod='',doImpacts=False,retrieve=False,s
         with open(fileName,'r') as f:
             quartiles = [float(x) for x in f.readlines()[0].split()]
     else:
+        logging.info('{0}:{1}:{2}: Finding Asymptotic limit: {3}'.format(analysis,mode,mass,datacard))
+        logging.debug('{0}:{1}:{2}: {3}'.format(analysis,mode,mass,combineCommand))
         out = runCommand(command)
 
         fname = os.path.join(workfull, "higgsCombineTest.Asymptotic.mH{0}.root".format(mass))
@@ -123,8 +123,8 @@ def getLimits(analysis,mode,mass,outDir,prod='',doImpacts=False,retrieve=False,s
         # setup the job parameters
         rmin = 0.8*min(quartiles)
         rmax = 1.2*max(quartiles)
-        num_points = 100
-        points_per_job = 5
+        num_points = numPoints
+        points_per_job = pointsPerJob
 
         # create dag dir
         dag_dir = '{0}/dags/dag'.format(sample_dir)
@@ -190,46 +190,61 @@ def getLimits(analysis,mode,mass,outDir,prod='',doImpacts=False,retrieve=False,s
         runCommand(command)
 
     # now get the fullCLs
-    args = [
-        ['Expected 0.025', '--expectedFromGrid 0.025', 'higgsCombineTest.HybridNew.mH{0}.quant0.025.root'],
-        ['Expected 0.160', '--expectedFromGrid 0.160', 'higgsCombineTest.HybridNew.mH{0}.quant0.160.root'],
-        ['Expected 0.500', '--expectedFromGrid 0.500', 'higgsCombineTest.HybridNew.mH{0}.quant0.500.root'],
-        ['Expected 0.840', '--expectedFromGrid 0.840', 'higgsCombineTest.HybridNew.mH{0}.quant0.840.root'],
-        ['Expected 0.975', '--expectedFromGrid 0.975', 'higgsCombineTest.HybridNew.mH{0}.quant0.975.root'],
-        ['Observed',       '',                         'higgsCombineTest.HybridNew.mH{0}.root'],
-    ]
-    
-    ## merge the output
-    #gridfile = 'grid_{0}.root'.format(mass)
-    #sourceDir = '/hdfs/store/user/dntaylor/2016-01-21_allLimits_10KToys_100Points_v1/{0}/{1}/{2}'.format(analysis,mode,mass)
-    #logging.info('{0}:{1}:{2}: Merging: {3}'.format(analysis,mode,mass,sourceDir))
-    #haddCommand = 'hadd {0} {1}/*.root'.format(gridfile,sourceDir)
-    #command = 'pushd {0}; nice {1};'.format(workfull,haddCommand)
-    #logging.debug('{0}:{1}:{2}: {3}'.format(analysis,mode,mass,haddCommand))
-    #out = runCommand(command)
+    if retrieve:
+        args = [
+            ['Expected 0.025', '--expectedFromGrid 0.025', 'higgsCombineTest.HybridNew.mH{0}.quant0.025.root'],
+            ['Expected 0.160', '--expectedFromGrid 0.160', 'higgsCombineTest.HybridNew.mH{0}.quant0.160.root'],
+            ['Expected 0.500', '--expectedFromGrid 0.500', 'higgsCombineTest.HybridNew.mH{0}.quant0.500.root'],
+            ['Expected 0.840', '--expectedFromGrid 0.840', 'higgsCombineTest.HybridNew.mH{0}.quant0.840.root'],
+            ['Expected 0.975', '--expectedFromGrid 0.975', 'higgsCombineTest.HybridNew.mH{0}.quant0.975.root'],
+            ['Observed',       '',                         'higgsCombineTest.HybridNew.mH{0}.root'],
+        ]
+        
+        # merge the output
+        if not gridTopDir:
+            logging.error('You must specify a top level directory for grid points')
+            return
+        gridfile = 'grid_{0}.root'.format(mass)
+        sourceDir = '{0}/{1}/{2}/{3}{4}'.format(gridTopDir,analysis,mode,mass,prod)
+        logging.info('{0}:{1}:{2}: Merging: {3}'.format(analysis,mode,mass,sourceDir))
+        haddCommand = 'hadd -f {0} {1}/*.root'.format(gridfile,sourceDir)
+        command = 'pushd {0}; {1};'.format(workfull,haddCommand)
+        logging.debug('{0}:{1}:{2}: {3}'.format(analysis,mode,mass,haddCommand))
+        out = runCommand(command)
+        logging.debug('{0}:{1}:{2}: {3}'.format(analysis,mode,mass,out))
 
-    ## get CL
-    #fullQuartiles = []
-    #for i in range(len(args)):
-    #    logging.info('{0}:{1}:{2}: Calculating: {3}'.format(analysis,mode,mass,args[i][0]))
-    #    combineCommand = 'combine {0} -M HybridNew --freq --grid={1} -m {2} --rAbsAcc 0.001 --rRelAcc 0.001 {3}'.format(dfull, gridfile, mass, args[i][1])
-    #    command = 'pushd {0}; nice {1};'.format(workfull, combineCommand)
-    #    logging.debug('{0}:{1}:{2}: {3}'.format(analysis,mode,mass,combineCommand))
-    #    outfile = '{0}/{1}'.format(workfull,args[i][2].format(mass))
-    #    out = runCommand(command)
+        # get CL
+        fullQuartiles = []
+        for i in range(len(args)):
+            logging.info('{0}:{1}:{2}: Calculating: {3}'.format(analysis,mode,mass,args[i][0]))
+            combineCommand = 'combine {0} -M HybridNew --freq --grid={1} -m {2} --rAbsAcc 0.001 --rRelAcc 0.001 {3}'.format(dfull, gridfile, mass, args[i][1])
+            command = 'pushd {0}; {1};'.format(workfull, combineCommand)
+            logging.debug('{0}:{1}:{2}: {3}'.format(analysis,mode,mass,combineCommand))
+            outfile = '{0}/{1}'.format(workfull,args[i][2].format(mass))
+            out = runCommand(command)
+            logging.debug('{0}:{1}:{2}: {3}'.format(analysis,mode,mass,out))
 
-    #    # read the limit
-    #    file = ROOT.TFile(outfile,"READ")
-    #    tree = file.Get("limit")
-    #    if not tree:
-    #        logging.warning('HybridNew failed')
-    #        val = 0.
-    #    else:
-    #        val = 0.
-    #        for i, row in enumerate(tree):
-    #            val = row.limit
-    #    fullQuartiles += [val]
+            # read the limit
+            file = ROOT.TFile(outfile,"READ")
+            tree = file.Get("limit")
+            if not tree:
+                logging.warning('HybridNew failed')
+                val = 0.
+            else:
+                val = 0.
+                for i, row in enumerate(tree):
+                    val = row.limit
+            fullQuartiles += [val]
 
+        name = 'fullCLs'
+        fileDir = '{4}/{0}/{1}/{2}/{3}'.format(name,analysis,mode,mass,srcdir)
+        python_mkdir(fileDir)
+        fileName = '{0}/limits{1}.txt'.format(fileDir,prod)
+
+        with open(fileName,'w') as f:
+            outline = ' '.join([str(x) for x in fullQuartiles])
+            logging.info('{0}:{1}:{2}: Full Limits: {3}'.format(analysis,mode,mass,outline))
+            f.write(outline)
 
 
 def parse_command_line(argv):
@@ -244,14 +259,18 @@ def parse_command_line(argv):
     parser.add_argument('-aa','--allAnalyses',action='store_true',help='Run over all anlayses')
     parser.add_argument('--impacts',action='store_true',help='Do impacts (slower)')
     # job submission
-    parser.add_argument('-j','--jobName', nargs='?',type=str,default='',help='Jobname for submission')
+    parser.add_argument('--jobName', nargs='?',type=str,default='',help='Jobname for submission')
     parser.add_argument('-s','--submit',action='store_true',help='Submit Full CLs')
     parser.add_argument('-sa','--skipAsymptotic',action='store_true',help='Skip calculating asymptotic (read from file)')
     parser.add_argument('-r','--retrieve',action='store_true',help='Retrieve Full CLs')
+    parser.add_argument('--gridTopDir', nargs='?',type=str,default='',help='Top level directory for grid points')
     parser.add_argument('-dr','--dryrun',action='store_true',help='Dryrun for submission')
     parser.add_argument('-T',type=int,default=1000,help='Number of toys')
     parser.add_argument('-i',type=int,default=2,help='Iterations')
+    parser.add_argument('-n','--numPoints',type=int,default=100,help='Number of points')
+    parser.add_argument('-p','--pointsPerJob',type=int,default=5,help='Iterations')
     # logging
+    parser.add_argument('-j',type=int,default=7,help='Number of cores')
     parser.add_argument('-l','--log',nargs='?',type=str,const='INFO',default='INFO',choices=['INFO','DEBUG','WARNING','ERROR','CRITICAL'],help='Log level for logger')
 
     args = parser.parse_args(argv)
@@ -276,22 +295,22 @@ def main(argv=None):
             if len(allowedMasses)==1 or args.submit:
                 for m in allowedMasses:
                     if an=='Hpp3l':
-                        getLimits(an,bp,m,args.directory,'AP',args.impacts,args.retrieve,args.submit,args.dryrun,args.jobName,args.skipAsymptotic,args.T,args.i)
-                        getLimits(an,bp,m,args.directory,'PP',args.impacts,args.retrieve,args.submit,args.dryrun,args.jobName,args.skipAsymptotic,args.T,args.i)
+                        getLimits(an,bp,m,args.directory,'AP',args.impacts,args.retrieve,args.submit,args.dryrun,args.jobName,args.skipAsymptotic,args.T,args.i,args.numPoints,args.pointsPerJob,args.gridTopDir)
+                        getLimits(an,bp,m,args.directory,'PP',args.impacts,args.retrieve,args.submit,args.dryrun,args.jobName,args.skipAsymptotic,args.T,args.i,args.numPoints,args.pointsPerJob,args.gridTopDir)
                     else:
-                        getLimits(an,bp,m,args.directory,'',args.impacts,args.retrieve,args.submit,args.dryrun,args.jobName,args.skipAsymptotic,args.T,args.i)
+                        getLimits(an,bp,m,args.directory,'',args.impacts,args.retrieve,args.submit,args.dryrun,args.jobName,args.skipAsymptotic,args.T,args.i,args.numPoints,args.pointsPerJob,args.gridTopDir)
             else:
                 allArgs = []
                 for m in allowedMasses:
                     if an=='Hpp3l':
-                        newArgs = [an,bp,m,args.directory,'AP',args.impacts,args.retrieve,args.submit,args.dryrun,args.jobName,args.skipAsymptotic,args.T,args.i]
+                        newArgs = [an,bp,m,args.directory,'AP',args.impacts,args.retrieve,args.submit,args.dryrun,args.jobName,args.skipAsymptotic,args.T,args.i,args.numPoints,args.pointsPerJob,args.gridTopDir]
                         allArgs += [newArgs]
-                        newArgs = [an,bp,m,args.directory,'PP',args.impacts,args.retrieve,args.submit,args.dryrun,args.jobName,args.skipAsymptotic,args.T,args.i]
+                        newArgs = [an,bp,m,args.directory,'PP',args.impacts,args.retrieve,args.submit,args.dryrun,args.jobName,args.skipAsymptotic,args.T,args.i,args.numPoints,args.pointsPerJob,args.gridTopDir]
                         allArgs += [newArgs]
                     else:
-                        newArgs = [an,bp,m,args.directory,'',args.impacts,args.retrieve,args.submit,args.dryrun,args.jobName,args.skipAsymptotic,args.T,args.i]
+                        newArgs = [an,bp,m,args.directory,'',args.impacts,args.retrieve,args.submit,args.dryrun,args.jobName,args.skipAsymptotic,args.T,args.i,args.numPoints,args.pointsPerJob,args.gridTopDir]
                         allArgs += [newArgs]
-                p = Pool(14)
+                p = Pool(args.j)
                 try:
                     p.map_async(limitsWrapper, allArgs).get(999999)
                 except KeyboardInterrupt:
