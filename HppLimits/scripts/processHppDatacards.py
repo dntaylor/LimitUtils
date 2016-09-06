@@ -39,7 +39,7 @@ def limitsWrapper(args):
 def runCommand(command):
     return subprocess.Popen(command,shell=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT).communicate()[0]
 
-def getLimits(analysis,mode,mass,outDir,prod='',doImpacts=False,retrieve=False,submit=False,dryrun=False,jobName='',skipAsymptotic=False,toys=1000,iterations=2,numPoints=100,pointsPerJob=5,gridTopDir=''):
+def getLimits(analysis,mode,mass,outDir,prod='',doImpacts=False,retrieve=False,submit=False,dryrun=False,jobName='',skipAsymptotic=False,toys=1000,iterations=2,numPoints=100,pointsPerJob=5,gridTopDir='',rMin=0,rMax=0):
     '''
     Submit a job using farmoutAnalysisJobs --fwklite
     '''
@@ -121,8 +121,8 @@ def getLimits(analysis,mode,mass,outDir,prod='',doImpacts=False,retrieve=False,s
             logging.warning('Submission directory exists for {0}.'.format(jobName))
             return
         # setup the job parameters
-        rmin = 0.8*min(quartiles)
-        rmax = 1.2*max(quartiles)
+        rmin = rMin if rMin else 0.8*min(quartiles)
+        rmax = rMax if rMax else 1.2*max(quartiles)
         num_points = numPoints
         points_per_job = pointsPerJob
 
@@ -148,7 +148,7 @@ def getLimits(analysis,mode,mass,outDir,prod='',doImpacts=False,retrieve=False,s
         bashScript += 'read -r RVAL < $INPUT\n'
         for i in range(points_per_job):
             dr = i*(rmax-rmin)/points_per_job
-            bashScript += 'combine $CMSSW_BASE/{0} -M HybridNew --freq -s -1 --singlePoint $(bc -l <<< "$RVAL+{1}") --saveToys --fullBToys --clsAcc 0 --saveHybridResult -m {2} -n Tag -T {3} -i {4} -v -2\n'.format(drel,dr,mass,toys,iterations)
+            bashScript += 'combine $CMSSW_BASE/{0} -M HybridNew --freq -s -1 --singlePoint $(bc -l <<< "$RVAL+{1}") --saveToys --fullBToys --clsAcc 0 --saveHybridResult -m {2} -n Tag -T {3} -i {4} --rMax {5} --rMin {6} -v -2\n'.format(drel,dr,mass,toys,iterations,rmax,rmin)
             #bashScript += 'rm -f tmp/rstats*\n' # try cleaning up tmp files to avoid too uch disk space
         bashScript += 'hadd $OUTPUT higgsCombineTag.HybridNew.mH{0}.*.root\n'.format(mass)
         bashScript += 'rm higgsCombineTag.HybridNew.mH{0}.*.root\n'.format(mass)
@@ -215,9 +215,11 @@ def getLimits(analysis,mode,mass,outDir,prod='',doImpacts=False,retrieve=False,s
 
         # get CL
         fullQuartiles = []
+        rMax = max(quartiles)
+        rMin = min(quartiles)
         for i in range(len(args)):
             logging.info('{0}:{1}:{2}: Calculating: {3}'.format(analysis,mode,mass,args[i][0]))
-            combineCommand = 'combine {0} -M HybridNew --freq --grid={1} -m {2} --rAbsAcc 0.001 --rRelAcc 0.001 {3}'.format(dfull, gridfile, mass, args[i][1])
+            combineCommand = 'combine {0} -M HybridNew --freq --grid={1} -m {2} --rAbsAcc 0.001 --rRelAcc 0.001 --rMax {3} --rMin {4} {5}'.format(dfull, gridfile, mass, rMax, rMin, args[i][1])
             command = 'pushd {0}; {1};'.format(workfull, combineCommand)
             logging.debug('{0}:{1}:{2}: {3}'.format(analysis,mode,mass,combineCommand))
             outfile = '{0}/{1}'.format(workfull,args[i][2].format(mass))
@@ -267,6 +269,8 @@ def parse_command_line(argv):
     parser.add_argument('-dr','--dryrun',action='store_true',help='Dryrun for submission')
     parser.add_argument('-T',type=int,default=1000,help='Number of toys')
     parser.add_argument('-i',type=int,default=2,help='Iterations')
+    parser.add_argument('--rMin',type=float,default=0,help='Use custom min value for r')
+    parser.add_argument('--rMax',type=float,default=0,help='Use custom max value for r')
     parser.add_argument('-n','--numPoints',type=int,default=100,help='Number of points')
     parser.add_argument('-p','--pointsPerJob',type=int,default=5,help='Iterations')
     # logging
@@ -295,20 +299,20 @@ def main(argv=None):
             if len(allowedMasses)==1 or args.submit:
                 for m in allowedMasses:
                     if an=='Hpp3l':
-                        getLimits(an,bp,m,args.directory,'AP',args.impacts,args.retrieve,args.submit,args.dryrun,args.jobName,args.skipAsymptotic,args.T,args.i,args.numPoints,args.pointsPerJob,args.gridTopDir)
-                        getLimits(an,bp,m,args.directory,'PP',args.impacts,args.retrieve,args.submit,args.dryrun,args.jobName,args.skipAsymptotic,args.T,args.i,args.numPoints,args.pointsPerJob,args.gridTopDir)
+                        getLimits(an,bp,m,args.directory,'AP',args.impacts,args.retrieve,args.submit,args.dryrun,args.jobName,args.skipAsymptotic,args.T,args.i,args.numPoints,args.pointsPerJob,args.gridTopDir,args.rMin,args.rMax)
+                        getLimits(an,bp,m,args.directory,'PP',args.impacts,args.retrieve,args.submit,args.dryrun,args.jobName,args.skipAsymptotic,args.T,args.i,args.numPoints,args.pointsPerJob,args.gridTopDir,args.rMin,args.rMax)
                     else:
-                        getLimits(an,bp,m,args.directory,'',args.impacts,args.retrieve,args.submit,args.dryrun,args.jobName,args.skipAsymptotic,args.T,args.i,args.numPoints,args.pointsPerJob,args.gridTopDir)
+                        getLimits(an,bp,m,args.directory,'',args.impacts,args.retrieve,args.submit,args.dryrun,args.jobName,args.skipAsymptotic,args.T,args.i,args.numPoints,args.pointsPerJob,args.gridTopDir,args.rMin,args.rMax)
             else:
                 allArgs = []
                 for m in allowedMasses:
                     if an=='Hpp3l':
-                        newArgs = [an,bp,m,args.directory,'AP',args.impacts,args.retrieve,args.submit,args.dryrun,args.jobName,args.skipAsymptotic,args.T,args.i,args.numPoints,args.pointsPerJob,args.gridTopDir]
+                        newArgs = [an,bp,m,args.directory,'AP',args.impacts,args.retrieve,args.submit,args.dryrun,args.jobName,args.skipAsymptotic,args.T,args.i,args.numPoints,args.pointsPerJob,args.gridTopDir,args.rMin,args.rMax]
                         allArgs += [newArgs]
-                        newArgs = [an,bp,m,args.directory,'PP',args.impacts,args.retrieve,args.submit,args.dryrun,args.jobName,args.skipAsymptotic,args.T,args.i,args.numPoints,args.pointsPerJob,args.gridTopDir]
+                        newArgs = [an,bp,m,args.directory,'PP',args.impacts,args.retrieve,args.submit,args.dryrun,args.jobName,args.skipAsymptotic,args.T,args.i,args.numPoints,args.pointsPerJob,args.gridTopDir,args.rMin,args.rMax]
                         allArgs += [newArgs]
                     else:
-                        newArgs = [an,bp,m,args.directory,'',args.impacts,args.retrieve,args.submit,args.dryrun,args.jobName,args.skipAsymptotic,args.T,args.i,args.numPoints,args.pointsPerJob,args.gridTopDir]
+                        newArgs = [an,bp,m,args.directory,'',args.impacts,args.retrieve,args.submit,args.dryrun,args.jobName,args.skipAsymptotic,args.T,args.i,args.numPoints,args.pointsPerJob,args.gridTopDir,args.rMin,args.rMax]
                         allArgs += [newArgs]
                 p = Pool(args.j)
                 try:
