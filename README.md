@@ -2,8 +2,8 @@
 Standalone limit utilities in the CMSSW framework with HiggsCombine
 
 ```bash
-cmsrel CMSSW_7_4_7
-cd CMSSW_7_4_7/src
+cmsrel CMSSW_8_1_0
+cd CMSSW_8_1_0/src
 cmsenv
 git cms-init
 git clone git@github.com:dntaylor/LimitUtils.git
