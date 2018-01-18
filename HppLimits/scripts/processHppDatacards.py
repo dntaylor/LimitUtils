@@ -57,9 +57,18 @@ def getLimits(analysis,mode,mass,outDir,prod='',doImpacts=False,retrieve=False,s
     if analysis=='HppAP':
         # just cp
         runCommand('pushd {0}; cp datacards/Hpp3l/{1}/{2}AP.txt {3}'.format(srcdir,mode,mass,datacard))
+    if analysis=='Hpp3lR':
+        # just cp
+        runCommand('pushd {0}; cp datacards/Hpp3l/{1}/{2}PPR.txt {3}'.format(srcdir,mode,mass,datacard))
+    if analysis=='Hpp4lR':
+        # just cp
+        runCommand('pushd {0}; cp datacards/Hpp4l/{1}/{2}R.txt {3}'.format(srcdir,mode,mass,datacard))
     if analysis=='HppPP':
         # combine 3l PP and 4l PP
         runCommand('pushd {0}; combineCards.py datacards/Hpp3l/{1}/{2}PP.txt datacards/Hpp4l/{1}/{2}.txt > {3}'.format(srcdir,mode,mass,datacard))
+    if analysis=='HppPPR':
+        # combine 3l PPR and 4l PPR
+        runCommand('pushd {0}; combineCards.py datacards/Hpp3l/{1}/{2}PPR.txt datacards/Hpp4l/{1}/{2}R.txt > {3}'.format(srcdir,mode,mass,datacard))
     if analysis=='HppComb':
         # combein 3l AP, 3l PP, and 4l PP
         runCommand('pushd {0}; combineCards.py datacards/Hpp3l/{1}/{2}.txt datacards/Hpp4l/{1}/{2}.txt > {3}'.format(srcdir,mode,mass,datacard))
@@ -252,7 +261,7 @@ def getLimits(analysis,mode,mass,outDir,prod='',doImpacts=False,retrieve=False,s
 def parse_command_line(argv):
     parser = argparse.ArgumentParser(description='Process limits')
 
-    parser.add_argument('-a','--analysis', nargs='?',type=str,const='',choices=['Hpp4l','Hpp3l','HppAP','HppPP','HppComb'],help='Analysis to process')
+    parser.add_argument('-a','--analysis', nargs='?',type=str,const='',choices=['Hpp4l','Hpp4lR','Hpp3l','Hpp3lR','HppAP','HppPP','HppPPR','HppComb'],help='Analysis to process')
     parser.add_argument('-d','--directory', nargs='?',type=str,const='',help='Custom out directory')
     parser.add_argument('-m','--mass', nargs='?',type=str,const='500',help='Mass for Higgs combine')
     parser.add_argument('-bp','--branchingPoint',nargs='?',type=str,const='BP4',default='BP4',choices=['ee100','em100','mm100','et100','mt100','tt100','BP1','BP2','BP3','BP4'],help='Choose branching point')
@@ -290,7 +299,7 @@ def main(argv=None):
     loglevel = getattr(logging,args.log)
     logging.basicConfig(format='%(asctime)s.%(msecs)03d %(levelname)s %(name)s: %(message)s', level=loglevel, datefmt='%Y-%m-%d %H:%M:%S')
 
-    allowedAnalyses = ['Hpp4l','Hpp3l','HppAP','HppPP','HppComb'] if args.allAnalyses else [args.analysis]
+    allowedAnalyses = ['Hpp4l','Hpp4lR','Hpp3l','Hpp3lR','HppAP','HppPP','HppPPR','HppComb'] if args.allAnalyses else [args.analysis]
     allowedBranchingPoints = ['ee100','em100','mm100','et100','mt100','tt100','BP1','BP2','BP3','BP4'] if args.allBranchingPoints else [args.branchingPoint]
     allowedMasses = masses if args.allMasses else [args.mass]
 
@@ -298,21 +307,17 @@ def main(argv=None):
         for bp in allowedBranchingPoints:
             if len(allowedMasses)==1 or args.submit:
                 for m in allowedMasses:
-                    if an=='Hpp3l':
-                        getLimits(an,bp,m,args.directory,'AP',args.impacts,args.retrieve,args.submit,args.dryrun,args.jobName,args.skipAsymptotic,args.T,args.i,args.numPoints,args.pointsPerJob,args.gridTopDir,args.rMin,args.rMax)
-                        getLimits(an,bp,m,args.directory,'PP',args.impacts,args.retrieve,args.submit,args.dryrun,args.jobName,args.skipAsymptotic,args.T,args.i,args.numPoints,args.pointsPerJob,args.gridTopDir,args.rMin,args.rMax)
-                    else:
-                        getLimits(an,bp,m,args.directory,'',args.impacts,args.retrieve,args.submit,args.dryrun,args.jobName,args.skipAsymptotic,args.T,args.i,args.numPoints,args.pointsPerJob,args.gridTopDir,args.rMin,args.rMax)
+                    postfix = ['']
+                    if an=='Hpp3l': postfix = ['AP','PP']
+                    for post in postfix:
+                        getLimits(an,bp,m,args.directory,post,args.impacts,args.retrieve,args.submit,args.dryrun,args.jobName,args.skipAsymptotic,args.T,args.i,args.numPoints,args.pointsPerJob,args.gridTopDir,args.rMin,args.rMax)
             else:
                 allArgs = []
                 for m in allowedMasses:
-                    if an=='Hpp3l':
-                        newArgs = [an,bp,m,args.directory,'AP',args.impacts,args.retrieve,args.submit,args.dryrun,args.jobName,args.skipAsymptotic,args.T,args.i,args.numPoints,args.pointsPerJob,args.gridTopDir,args.rMin,args.rMax]
-                        allArgs += [newArgs]
-                        newArgs = [an,bp,m,args.directory,'PP',args.impacts,args.retrieve,args.submit,args.dryrun,args.jobName,args.skipAsymptotic,args.T,args.i,args.numPoints,args.pointsPerJob,args.gridTopDir,args.rMin,args.rMax]
-                        allArgs += [newArgs]
-                    else:
-                        newArgs = [an,bp,m,args.directory,'',args.impacts,args.retrieve,args.submit,args.dryrun,args.jobName,args.skipAsymptotic,args.T,args.i,args.numPoints,args.pointsPerJob,args.gridTopDir,args.rMin,args.rMax]
+                    postfix = ['']
+                    if an=='Hpp3l': postfix = ['AP','PP']
+                    for post in postfix:
+                        newArgs = [an,bp,m,args.directory,post,args.impacts,args.retrieve,args.submit,args.dryrun,args.jobName,args.skipAsymptotic,args.T,args.i,args.numPoints,args.pointsPerJob,args.gridTopDir,args.rMin,args.rMax]
                         allArgs += [newArgs]
                 p = Pool(args.j)
                 try:

@@ -33,7 +33,8 @@ def getVals(allFuncs):
     expMap = {}
     expMapB = {}
     for f,v in allFuncs.iteritems():
-        if 'proc' in f: continue
+        #if 'proc' in f: continue
+        if 'SB' in f: continue
         if 'bonly' in f:
             expMapB[f] = v.getVal()
         else:
@@ -46,7 +47,7 @@ def getUncertainty(expMap,shiftMap):
     for f in expMap:
         total += expMap[f]
         totalShift += shiftMap[f]
-    unc = abs(total-totalShift)/total
+    unc = abs(total-totalShift)/total if total else 0.
     return unc
 
 def varyNuisances(allVars, allFuncs, *nuis):
@@ -90,12 +91,12 @@ def getCardUncertainties(analysis,mode,mass):
     #printDict(allPdfs)
     #print 'functions'
     #printDict(allFunctions)
-    #print 'vars', len(allVars), 'pdfs', len(allPdfs), 'functions', len(allFunctions)
     
     uncertainties = {}
     uncertainties['lumi'] =      varyNuisances(allVars,allFunctions,*[x for x in allVars if x.startswith('lumi') and not x.endswith('In')])
-    uncertainties['sig'] =       varyNuisances(allVars,allFunctions,*['sig_unc'])
-    uncertainties['charge'] =    varyNuisances(allVars,allFunctions,*[x for x in allVars if 'charge' in x and not x.endswith('In')])
+    uncertainties['sigAP'] =       varyNuisances(allVars,allFunctions,*['sig_unc_AP'])
+    uncertainties['sigPP'] =       varyNuisances(allVars,allFunctions,*['sig_unc_PP'])
+    #uncertainties['charge'] =    varyNuisances(allVars,allFunctions,*[x for x in allVars if 'charge' in x and not x.endswith('In')])
     uncertainties['elec_id'] =   varyNuisances(allVars,allFunctions,*['elec_id'])
     uncertainties['muon_id'] =   varyNuisances(allVars,allFunctions,*['muon_id'])
     uncertainties['tau_id'] =    varyNuisances(allVars,allFunctions,*['tau_id'])
@@ -103,9 +104,11 @@ def getCardUncertainties(analysis,mode,mass):
     uncertainties['alpha_unc'] = varyNuisances(allVars,allFunctions,*[x for x in allVars if x.startswith('alpha_unc') and not x.endswith('In')])
     return uncertainties
 
-analyses = ['Hpp3lAP','Hpp3lPP','Hpp4l','HppAP','HppPP','HppComb']
+analyses = ['Hpp3lAP','Hpp3lPP','Hpp3lPPR','Hpp4l','Hpp4lR','HppAP','HppPP','HppPPR','HppComb']
 modes = ['ee100','em100','et100','mm100','mt100','tt100','BP1','BP2','BP3','BP4']
 masses = [200,300,400,500,600,700,800,900,1000,1100,1200,1300,1400,1500]
+modes = ['mm100']
+#masses = [200]
 unc = {}
 for mode in modes:
     unc[mode] = {}
