@@ -87,7 +87,7 @@ def getLimits(analysis,mode,mass,outDir,prod='',doImpacts=False,retrieve=False,s
     work = 'working/{0}{2}/{1}'.format(analysis,mode,prod)
     workfull = os.path.join(srcdir,work)
     python_mkdir(workfull)
-    combineCommand = 'combine -M Asymptotic {0} -m {1} --saveWorkspace'.format(dfull,mass)
+    combineCommand = 'combine -M AsymptoticLimits {0} -m {1} --saveWorkspace'.format(dfull,mass)
     #command = 'pushd {0}; nice {1};'.format(workfull,combineCommand) 
     command = 'pushd {0}; {1};'.format(workfull,combineCommand) 
 
@@ -104,7 +104,7 @@ def getLimits(analysis,mode,mass,outDir,prod='',doImpacts=False,retrieve=False,s
         logging.debug('{0}:{1}:{2}: {3}'.format(analysis,mode,mass,combineCommand))
         out = runCommand(command)
 
-        fname = os.path.join(workfull, "higgsCombineTest.Asymptotic.mH{0}.root".format(mass))
+        fname = os.path.join(workfull, "higgsCombineTest.AsymptoticLimits.mH{0}.root".format(mass))
         file = ROOT.TFile(fname,"READ")
         tree = file.Get("limit")
         if not tree: 
