@@ -117,6 +117,50 @@ def getLimits(analysis,mode,mass,outDir,prod='',doImpacts=False,retrieve=False,s
             outline = ' '.join([str(x) for x in quartiles])
             logging.info('{0}:{1}:{2}: Limits: {3}'.format(analysis,mode,mass,outline))
 
+        if len(quartiles)<6:
+            logging.warning('{0}:{1}:{2}: Attempting grid search'.format(analysis,mode,mass))
+
+            imin = min(quartiles)/20
+            imax = max(quartiles)*20
+            npoints = 100
+            deltai = (imax-imin)/(npoints)
+            i = imin
+            while i<=imax:
+                combineCommand = 'combine -M AsymptoticLimits {0} -m {1} --singlePoint {2} -n grid{2}'.format(dfull,mass,i)
+                #command = 'pushd {0}; nice {1};'.format(workfull,combineCommand)
+                command = 'pushd {0}; {1};'.format(workfull,combineCommand)
+                logging.debug('{0}:{1}:{2}: {3}'.format(analysis,mode,mass,combineCommand))
+                out = runCommand(command)
+
+                i += deltai
+
+            haddfile = 'limitsgrid.mH{0}.root'.format(mass)
+            sourcefiles = 'higgsCombinegrid*.AsymptoticLimits.mH{0}.root'.format(mass)
+            command = 'pushd {0}; hadd -f {1} {2};'.format(workfull,haddfile,sourcefiles)
+            logging.debug('{0}:{1}:{2}: {3}'.format(analysis,mode,mass,command))
+            out = runCommand(command)
+            command = 'pushd {0}; rm {1};'.format(workfull,sourcefiles)
+            logging.debug('{0}:{1}:{2}: {3}'.format(analysis,mode,mass,command))
+            out = runCommand(command)
+
+            combineCommand = 'combine -M AsymptoticLimits {0} -m {1} --getLimitFromGrid {2} -n Grid'.format(dfull,mass,haddfile)
+            command = 'pushd {0}; {1};'.format(workfull,combineCommand)
+            logging.debug('{0}:{1}:{2}: {3}'.format(analysis,mode,mass,combineCommand))
+            out = runCommand(command)
+
+            fname = os.path.join(workfull, "higgsCombineGrid.AsymptoticLimits.mH{0}.root".format(mass))
+            file = ROOT.TFile(fname,"READ")
+            tree = file.Get("limit")
+            if not tree: 
+                logging.warning('{0}:{1}:{2}: Asymptotic grid presearch failed'.format(analysis,mode,mass))
+                quartiles = [0., 0., 0., 0., 0., 0.]
+            else:
+                quartiles = []
+                for i, row in enumerate(tree):
+                    quartiles += [row.limit]
+                outline = ' '.join([str(x) for x in quartiles])
+                logging.info('{0}:{1}:{2}: Limits (from grid): {3}'.format(analysis,mode,mass,outline))
+
         with open(fileName,'w') as f:
             outline = ' '.join([str(x) for x in quartiles])
             f.write(outline)
